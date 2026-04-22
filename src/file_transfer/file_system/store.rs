@@ -20,14 +20,19 @@
 
 use std::fmt::Debug;
 use std::io;
+use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
 use eyre::WrapErr;
-use tracing::{instrument, trace};
+use futures::{Stream, StreamExt, TryStreamExt};
+use tokio::fs::ReadDir;
+use tokio_stream::wrappers::ReadDirStream;
+use tracing::{error, instrument, trace};
 use uuid::Uuid;
 
 use crate::file_transfer::config::Percentage;
 use crate::file_transfer::encoding::Paths;
+use crate::file_transfer::interface::file::StoredFile;
 use crate::file_transfer::request::FileDigest;
 
 use super::{FileOptions, WriteHandle};
@@ -116,7 +121,7 @@ impl<F> FileStorage<F> {
         &self,
         handle: &mut WriteHandle,
         opt: &FileOptions,
-    ) -> io::Result<()>
+    ) -> io::Result<StoredFile<Uuid>>
     where
         F: Space,
     {
@@ -124,7 +129,36 @@ impl<F> FileStorage<F> {
 
         self.fs.finalize(opt.id).await?;
 
-        Ok(())
+        Ok(Self::to_stored_file(handle, opt))
+    }
+
+    #[instrument(skip_all)]
+    pub(crate) async fn files(&self) -> io::Result<impl Stream<Item = io::Result<StoredFile>>> {
+        let read_dir = tokio::fs::read_dir(&self.dir).await?;
+
+        let stream = ReadDirStream::new(read_dir).and_then(async |e| {
+            let id = e.file_name().into_string().map_err(|os| {
+                error!(name = format!("{os:?}"), "can't convert file name");
+
+                io::Error::new(io::ErrorKind::InvalidFilename, "invalid file name stored")
+            })?;
+
+            let path = e.path();
+            let size = e.metadata().await?.len();
+
+            Ok(StoredFile::create(id, path, size))
+        });
+
+        Ok(stream)
+    }
+
+    #[instrument(skip_all)]
+    fn to_stored_file(handle: &mut WriteHandle, opt: &FileOptions) -> StoredFile<Uuid> {
+        let id = opt.id;
+        let size = opt.file_size;
+        let path = handle.path.clone();
+
+        StoredFile::create(id, path, size)
     }
 }
 

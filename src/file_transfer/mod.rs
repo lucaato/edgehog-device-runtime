@@ -20,6 +20,7 @@
 
 use std::io;
 use std::path::{Path, PathBuf};
+use std::pin::pin;
 use std::sync::Arc;
 
 use astarte_device_sdk::Client;
@@ -27,8 +28,10 @@ use edgehog_store::models::job::Job;
 use edgehog_store::models::job::job_type::JobType;
 use edgehog_store::models::job::status::JobStatus;
 use eyre::{Context, eyre};
-use futures::StreamExt;
+use futures::{Stream, StreamExt};
+use tokio::fs::ReadDir;
 use tokio::sync::{Notify, watch};
+use tokio_stream::wrappers::ReadDirStream;
 use tokio_util::codec::{BytesCodec, FramedWrite};
 use tokio_util::io::ReaderStream;
 use tokio_util::sync::CancellationToken;
@@ -37,6 +40,7 @@ use uuid::Uuid;
 
 use crate::controller::actor::Persisted;
 use crate::file_transfer::http::FtHttpClient;
+use crate::file_transfer::interface::file::StoredFile;
 use crate::file_transfer::interface::request::FileTransferRequest;
 use crate::file_transfer::interface::status::FileTransferProgress;
 use crate::io::limit::Limit;
@@ -202,6 +206,8 @@ impl<F, S, C> FileTransfer<F, S, C> {
     {
         self.storage.init().await?;
 
+        self.report_files().await?;
+
         self.jobs(&cancel).await?;
 
         while Self::notified(&notify, &cancel).await {
@@ -276,6 +282,7 @@ impl<F, S, C> FileTransfer<F, S, C> {
     #[instrument(skip_all)]
     async fn download(&mut self, req: &Download<'_>) -> eyre::Result<()>
     where
+        C: Client + Send + Sync + 'static,
         F: Space,
         S: Pipe,
     {
@@ -291,6 +298,7 @@ impl<F, S, C> FileTransfer<F, S, C> {
     #[instrument(skip_all)]
     async fn download_store(&mut self, download: &Download<'_>) -> eyre::Result<()>
     where
+        C: Client + Send + Sync + 'static,
         F: Space,
     {
         let exists = self
@@ -314,11 +322,16 @@ impl<F, S, C> FileTransfer<F, S, C> {
             return Err(error);
         }
 
-        if let Err(error) = self.storage.finalize_write(&mut file, &opt).await {
-            error!(%error, "error while finalizing write");
-            file.cleanup().await?;
-            return Err(eyre!(error));
-        }
+        let stored = match self.storage.finalize_write(&mut file, &opt).await {
+            Ok(f) => f,
+            Err(error) => {
+                error!(%error, "error while finalizing write");
+                file.cleanup().await?;
+                return Err(eyre!(error));
+            }
+        };
+
+        stored.send(&mut self.device).await?;
 
         Ok(())
     }
@@ -587,6 +600,30 @@ impl<F, S, C> FileTransfer<F, S, C> {
             .delete(&id, tag.into())
             .await
             .wrap_err("couldn't clean up job")?;
+
+        Ok(())
+    }
+
+    async fn report_files(&mut self) -> eyre::Result<()>
+    where
+        C: Client + Send + Sync + 'static,
+    {
+        let mut files = pin!(self.storage.files().await?);
+
+        while let Some(entry) = files.next().await {
+            let entry = match entry {
+                Ok(e) => e,
+                Err(error) => {
+                    error!(%error, "error while reading files from stream");
+                    continue;
+                }
+            };
+
+            entry
+                .send(&mut self.device)
+                .await
+                .wrap_err("couldn't send stored file to astarte")?;
+        }
 
         Ok(())
     }
