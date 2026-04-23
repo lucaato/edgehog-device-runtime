@@ -516,6 +516,11 @@ impl<F, S, C> FileTransfer<F, S, C> {
             Some(Encoding::TarGz) => {
                 let paths = self.storage.find_paths(id).await?;
 
+                // NOTE construct the progress to get the total length (this means compressing two times)
+                let mut reader = Progress::new(TarGzBuilder::spawn(paths.clone()), ());
+                tokio::io::copy(&mut reader, &mut tokio::io::sink()).await?;
+                let file_len = reader.into_total();
+
                 let progress = FileTransferProgress::start(req.transfer(), req.progress, None);
 
                 let reader = TarGzBuilder::spawn(paths);
@@ -523,7 +528,7 @@ impl<F, S, C> FileTransfer<F, S, C> {
                 let reader = ReaderStream::new(reader);
 
                 self.client
-                    .upload(&req.url, req.headers.clone(), reader)
+                    .upload_sized(&req.url, req.headers.clone(), reader, file_len)
                     .await?;
             }
             None => {
@@ -537,7 +542,7 @@ impl<F, S, C> FileTransfer<F, S, C> {
                 let reader = ReaderStream::new(reader);
 
                 self.client
-                    .upload(&req.url, req.headers.clone(), reader)
+                    .upload_sized(&req.url, req.headers.clone(), reader, file_len)
                     .await?;
             }
         }
@@ -570,6 +575,11 @@ impl<F, S, C> FileTransfer<F, S, C> {
             Some(Encoding::TarGz) => {
                 let paths = Paths::read(path.to_path_buf()).await?;
 
+                // NOTE construct the progress to get the total length (this means compressing two times)
+                let mut reader = Progress::new(TarGzBuilder::spawn(paths.clone()), ());
+                tokio::io::copy(&mut reader, &mut tokio::io::sink()).await?;
+                let file_len = reader.into_total();
+
                 let progress = FileTransferProgress::start(req.transfer(), req.progress, None);
 
                 let reader = TarGzBuilder::spawn(paths);
@@ -577,7 +587,7 @@ impl<F, S, C> FileTransfer<F, S, C> {
                 let reader = tokio_util::io::ReaderStream::new(reader);
 
                 self.client
-                    .upload(&req.url, req.headers.clone(), reader)
+                    .upload_sized(&req.url, req.headers.clone(), reader, file_len)
                     .await?;
             }
             None => {
@@ -591,7 +601,7 @@ impl<F, S, C> FileTransfer<F, S, C> {
                 let reader = ReaderStream::new(reader);
 
                 self.client
-                    .upload(&req.url, req.headers.clone(), reader)
+                    .upload_sized(&req.url, req.headers.clone(), reader, file_len)
                     .await?;
             }
         }

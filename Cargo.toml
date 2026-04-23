@@ -177,7 +177,7 @@ rustc_version.workspace = true
 
 [dev-dependencies]
 astarte-device-sdk-mock.workspace = true
-httpmock.workspace = true
+httpmock = { workspace = true, features = ["http2"] }
 insta.workspace = true
 mockall.workspace = true
 pretty_assertions.workspace = true
