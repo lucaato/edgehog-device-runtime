@@ -1048,13 +1048,11 @@ mod tests {
         MockedFtCall::new(call_get, req, content)
     }
 
-    #[tokio::test]
-    async fn should_download() {
-        let server = MockServer::start_async().await;
-        let mock_download_event = mk_download(&server).await;
-
-        let mut seq = Sequence::new();
-        let mut device = MockDeviceClient::<Mqtt<SqliteStore>>::new();
+    fn add_download_ok_expect(
+        device: &mut MockDeviceClient<Mqtt<SqliteStore>>,
+        seq: &mut Sequence,
+        id: Uuid,
+    ) {
         device
             .expect_send_object()
             .with(
@@ -1063,8 +1061,48 @@ mod tests {
                 always(),
             )
             .once()
-            .in_sequence(&mut seq)
+            .in_sequence(seq)
             .returning(|_, _, _| Ok(()));
+        device
+            .expect_set_property()
+            .with(
+                eq(StoredFile::INTERFACE),
+                eq(format!("/{}/pathOnDevice", id)),
+                always(),
+            )
+            .once()
+            .in_sequence(seq)
+            .returning(|_, _, _| Ok(()));
+        device
+            .expect_set_property()
+            .with(
+                eq(StoredFile::INTERFACE),
+                eq(format!("/{}/sizeBytes", id)),
+                always(),
+            )
+            .once()
+            .in_sequence(seq)
+            .returning(|_, _, _| Ok(()));
+    }
+
+    #[tokio::test]
+    async fn should_download() {
+        let server = MockServer::start_async().await;
+        let mock_download_event = mk_download(&server).await;
+
+        let mut seq = Sequence::new();
+        let mut device = MockDeviceClient::<Mqtt<SqliteStore>>::new();
+        // device
+        //     .expect_send_object()
+        //     .with(
+        //         eq("io.edgehog.devicemanager.fileTransfer.Response"),
+        //         eq("/request"),
+        //         always(),
+        //     )
+        //     .once()
+        //     .in_sequence(&mut seq)
+        //     .returning(|_, _, _| Ok(()));
+        add_download_ok_expect(&mut device, &mut seq, mock_download_event.req.id());
         let (mut transfer, dir) = mk_def_transfer("should_download", device).await;
 
         let complete_file = dir.path().join(mock_download_event.req.id().to_string());
