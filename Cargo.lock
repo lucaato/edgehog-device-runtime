@@ -1226,6 +1226,7 @@ dependencies = [
  "httpmock",
  "insta",
  "minicbor",
+ "minicbor-io",
  "mockall",
  "pin-project",
  "pretty_assertions",
@@ -2612,6 +2613,18 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "minicbor-io"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a6b0804a9e647352b62d20cb66dfeffeb18b1b34f0eb042dee08f352457d6a04"
+dependencies = [
+ "futures-core",
+ "futures-io",
+ "futures-util",
+ "minicbor",
 ]
 
 [[package]]

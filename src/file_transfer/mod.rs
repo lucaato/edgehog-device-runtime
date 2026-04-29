@@ -68,6 +68,7 @@ pub(crate) mod housekeeping;
 pub(crate) mod http;
 pub(crate) mod interface;
 pub(crate) mod request;
+mod stream;
 
 #[derive(Debug)]
 pub(crate) struct Receiver<C> {
