@@ -43,6 +43,7 @@ hyper = { workspace = true, optional = true }
 itertools.workspace = true
 mockall = { workspace = true, optional = true }
 serde_json.workspace = true
+sigstore = { workspace = true, features = ["rustls-tls", "verify", "cosign"] }
 thiserror.workspace = true
 tokio = { workspace = true, features = ["macros", "fs", "io-util"] }
 tokio-util.workspace = true
