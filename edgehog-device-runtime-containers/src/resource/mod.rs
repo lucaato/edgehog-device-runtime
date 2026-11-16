@@ -141,9 +141,7 @@ where
     fn on_error(
         _ctx: &mut Context<'_, D>,
         _error: &(dyn std::error::Error + Send + Sync),
-    ) -> impl Future<Output = ()> + Send {
-        std::future::ready(())
-    }
+    ) -> impl Future<Output = ()> + Send;
 
     fn create(&mut self, ctx: &mut Context<'_, D>) -> impl Future<Output = Result<()>> + Send;
 

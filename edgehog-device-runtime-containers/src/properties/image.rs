@@ -164,7 +164,7 @@ impl From<AvailableImageStatus> for AstarteData {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use crate::properties::tests::{expect_send_field, expect_send_opt_field, expect_unset_field};
     use astarte_device_sdk::AstarteData;
     use astarte_device_sdk::pairing::api::PairingApi;
@@ -213,6 +213,7 @@ mod tests {
             "pulled",
             status.is_pulled(),
         );
+
         expect_send_field(client, seq, INTERFACE, image.id, "status", status);
     }
 

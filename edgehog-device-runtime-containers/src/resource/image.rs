@@ -56,7 +56,6 @@ where
         ctx.store
             .update_image_status(ctx.id, ImageStatus::Published)
             .await?;
-
         Self::fetch(ctx).await?;
 
         Ok(())
