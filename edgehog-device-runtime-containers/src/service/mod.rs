@@ -1611,6 +1611,13 @@ mod tests {
             AvailableImageStatus::Missing,
         );
 
+        expect_status_send(
+            &mut device,
+            &mut seq,
+            AvailableImage::new(&Uuid::from(image.id)),
+            AvailableImageStatus::Pulling,
+        );
+
         client
             .expect_create_image()
             .once()
@@ -1624,13 +1631,6 @@ mod tests {
                 predicate::eq(None),
             )
             .returning(|_, _, _| stream::empty().boxed());
-
-        // expect_status_send(
-        //     &mut device,
-        //     &mut seq,
-        //     AvailableImage::new(&Uuid::from(image.id)),
-        //     AvailableImageStatus::Pulling,
-        // );
 
         client
             .expect_inspect_image()
@@ -1650,7 +1650,16 @@ mod tests {
         expect_available_image_send(
             &mut device,
             &mut seq,
-            AvailableImage::new(&Uuid::from(image.id)),
+            AvailableImage::with_inspect(
+                &Uuid::from(image.id),
+                bollard::plugin::ImageInspect {
+                    id: Some(
+                        "sha256:d2c94e258dcb3c5ac2798d32e1249e42ef01cba4841c2234249495f87264ac5a"
+                            .to_string(),
+                    ),
+                    ..Default::default()
+                },
+            ),
             AvailableImageStatus::Pulled,
         );
 
